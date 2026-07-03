@@ -114,12 +114,14 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.15;
+renderer.toneMappingExposure = 0.35;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x05070d, 0.045);
-
+scene.fog = new THREE.FogExp2(
+    0x05070d,
+    0.02
+);
 const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 100);
 camera.position.set(0, 1.4, 6.2);
 camera.lookAt(0, 1.0, 0);
@@ -127,12 +129,19 @@ camera.lookAt(0, 1.0, 0);
 // PBR environment (procedural — no external HDR download required)
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.25;
 
 // Lighting — JARVIS cyan/violet duotone
-const ambient = new THREE.AmbientLight(0x25304a, 0.9);
+const ambient = new THREE.AmbientLight(
+    0x25304a,
+    0.25
+);
 scene.add(ambient);
 
-const keyLight = new THREE.DirectionalLight(0x4fe3ff, 2.2);
+const keyLight = new THREE.DirectionalLight(
+    0x4fe3ff,
+    0.8
+);
 keyLight.position.set(4, 6, 4);
 keyLight.castShadow = true;
 keyLight.shadow.mapSize.set(2048, 2048);
@@ -141,11 +150,19 @@ keyLight.shadow.camera.top = 6; keyLight.shadow.camera.bottom = -6;
 keyLight.shadow.bias = -0.0015;
 scene.add(keyLight);
 
-const rimLight = new THREE.PointLight(0xa855f7, 3.5, 20);
+const rimLight = new THREE.PointLight(
+    0xa855f7,
+    1.2,
+    15
+);
 rimLight.position.set(-4, 3, -3);
 scene.add(rimLight);
 
-const fillLight = new THREE.PointLight(0x4fe3ff, 1.6, 16);
+const fillLight = new THREE.PointLight(
+    0x4fe3ff,
+    0.6,
+    12
+);
 fillLight.position.set(0, 2, 5);
 scene.add(fillLight);
 
@@ -195,7 +212,12 @@ scene.add(stars);
 /* ---- post-processing: bloom ---- */
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), state.bloomStrength, 0.5, 0.15);
+const bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(innerWidth, innerHeight),
+    0.35,
+    0.15,
+    0.85
+);
 composer.addPass(bloomPass);
 composer.addPass(new OutputPass());
 
@@ -213,7 +235,7 @@ const glassMat = (color, extra={}) => new THREE.MeshPhysicalMaterial({
   clearcoat:1, clearcoatRoughness:0.05, envMapIntensity:1.4, ...extra
 });
 const metalMat = (color, extra={}) => new THREE.MeshPhysicalMaterial({
-  color, metalness:1, roughness:0.25, clearcoat:0.4, envMapIntensity:1.6, ...extra
+  color, metalness:1, roughness:0.25, clearcoat:0.4, envMapIntensity:0.45, ...extra
 });
 const glowMat = (color, intensity=1.4) => new THREE.MeshStandardMaterial({
   color, emissive:color, emissiveIntensity:intensity, roughness:0.4, metalness:0.1
@@ -230,7 +252,7 @@ function makePointCloud(count, radiusFn, color, size=0.03){
     pos[i*3]=p.x; pos[i*3+1]=p.y; pos[i*3+2]=p.z;
   }
   geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
-  return new THREE.Points(geo, new THREE.PointsMaterial({ color, size, transparent:true, opacity:0.85, blending:THREE.AdditiveBlending, depthWrite:false }));
+  return new THREE.Points(geo, new THREE.PointsMaterial({ color, size, transparent:true, opacity:0.35, blending:THREE.AdditiveBlending, depthWrite:false }));
 }
 
 /* ---------------------------------------------------------------------- */
