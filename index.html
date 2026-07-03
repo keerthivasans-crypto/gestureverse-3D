@@ -66,10 +66,10 @@ button, select, input{ font-family:inherit; }
 
 #video-feed{
   position:fixed; inset:0; width:100%; height:100%; object-fit:cover;
-  transform:scaleX(-1); opacity:0; z-index:0; transition:opacity .6s var(--ease);
+  transform:scaleX(1); opacity:0; z-index:0; transition:opacity .6s var(--ease);
 }
 #video-feed.live{ opacity:0.16; }
-#landmark-canvas{ position:fixed; inset:0; z-index:2; pointer-events:none; transform:scaleX(-1); opacity:0; transition:opacity .5s; }
+#landmark-canvas{ position:fixed; inset:0; z-index:2; pointer-events:none; transform:scaleX(1); opacity:0; transition:opacity .5s; }
 #landmark-canvas.live{ opacity:1; }
 
 /* ============ TOP HUD BAR ============ */
