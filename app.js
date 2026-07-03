@@ -118,13 +118,21 @@ renderer.toneMappingExposure = 0.35;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(
-    0x05070d,
-    0.02
+scene.background =
+new THREE.Color(0x05070d);
+scene.fog =
+new THREE.FogExp2(
+0x03040a,
+0.012
 );
 const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 100);
-camera.position.set(0, 1.4, 6.2);
-camera.lookAt(0, 1.0, 0);
+camera.position.set(0,1.2,5.0);
+
+camera.lookAt(
+    0,
+    1.2,
+    0
+);
 
 // PBR environment (procedural — no external HDR download required)
 const pmrem = new THREE.PMREMGenerator(renderer);
@@ -134,7 +142,7 @@ scene.environmentIntensity = 0.25;
 // Lighting — JARVIS cyan/violet duotone
 const ambient = new THREE.AmbientLight(
     0x25304a,
-    0.25
+    0.2
 );
 scene.add(ambient);
 
@@ -184,7 +192,7 @@ keyLight.add(lensflare);
 // Reflective floor (dynamic reflections)
 const floorGeo = new THREE.CircleGeometry(9, 64);
 const floor = new Reflector(floorGeo, {
-  clipBias: 0.003, textureWidth: 1024, textureHeight: 1024, color: 0x0a0f1a,
+  clipBias: 0.003, textureWidth: 1024, textureHeight: 1024, color:0x03040a,
 });
 floor.rotation.x = -Math.PI/2;
 floor.position.y = -0.01;
@@ -682,7 +690,9 @@ function spawnObject(libId, worldPos=null){
   const builder = Factory[def.build];
   const group = builder(def.color);
   group.traverse(o=>{ if(o.isMesh){ o.castShadow=true; } });
-  const pos = worldPos || new THREE.Vector3((Math.random()-0.5)*2.4, group.position.y, (Math.random()-0.5)*1.2);
+  const pos = worldPos || new THREE.Vector3( 0,
+    1.15,
+    0, group.position.y, (Math.random()-0.5)*1.2);
   const baseY = pos.y;
   group.position.set(pos.x, pos.y, pos.z);
   const targetScale = group.scale.x || 1;
