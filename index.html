@@ -15,18 +15,18 @@
 :root{
   /* ---- token system ---- */
   --void:        #05070d;
-  --void-2:      #0a0e1a;
-  --panel:       rgba(14, 20, 36, 0.55);
-  --panel-edge:  rgba(120, 190, 255, 0.18);
+  --void-2:      #090d17;
+  --panel:       rgba(8,12,22,.78);
+  --panel-edge:  rgba(79,227,255,.18);
   --cyan:        #4fe3ff;
   --cyan-soft:   rgba(79, 227, 255, 0.35);
-  --violet:      #a855f7;
+  --violet:      #8a5cff;
   --violet-soft: rgba(168, 85, 247, 0.35);
   --amber:       #ffb454;
   --danger:      #ff5470;
   --ok:          #4dffa8;
-  --ink:         #eaf6ff;
-  --ink-dim:     #8fa3c0;
+  --ink:         #ffffff;
+  --ink-dim:     #95a8c5;
   --font-display: 'Orbitron', sans-serif;
   --font-body:    'Rajdhani', sans-serif;
   --font-mono:    'Space Mono', monospace;
@@ -35,12 +35,31 @@
 }
 
 *{ box-sizing:border-box; margin:0; padding:0; }
-html,body{ height:100%; background:var(--void); overflow:hidden; }
+html,body{    height:100%;
+
+    overflow:hidden;
+ }
 body{
-  font-family:var(--font-body);
-  color:var(--ink);
-  -webkit-font-smoothing:antialiased;
-  position:relative;
+  body{
+
+    font-family:var(--font-body);
+
+    color:var(--ink);
+
+    -webkit-font-smoothing:antialiased;
+
+    position:relative;
+
+    overflow:hidden;
+
+    background:
+    radial-gradient(circle at center,
+    #10253f 0%,
+    #08111d 35%,
+    #04070d 70%,
+    #010204 100%);
+
+}
 }
 ::selection{ background:var(--cyan-soft); }
 ::-webkit-scrollbar{ width:6px; }
