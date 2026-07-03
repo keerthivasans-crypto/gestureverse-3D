@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>AETHER — Gesture-Controlled Holographic Interface</title>
+<meta name="theme-color" content="#05070d" />
+<link rel="manifest" href="manifest.json" />
+
+<!-- Fonts: Orbitron for display/HUD, Rajdhani for body -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800;900&family=Rajdhani:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  /* ---- token system ---- */
+  --void:        #05070d;
+  --void-2:      #0a0e1a;
+  --panel:       rgba(14, 20, 36, 0.55);
+  --panel-edge:  rgba(120, 190, 255, 0.18);
+  --cyan:        #4fe3ff;
+  --cyan-soft:   rgba(79, 227, 255, 0.35);
+  --violet:      #a855f7;
+  --violet-soft: rgba(168, 85, 247, 0.35);
+  --amber:       #ffb454;
+  --danger:      #ff5470;
+  --ok:          #4dffa8;
+  --ink:         #eaf6ff;
+  --ink-dim:     #8fa3c0;
+  --font-display: 'Orbitron', sans-serif;
+  --font-body:    'Rajdhani', sans-serif;
+  --font-mono:    'Space Mono', monospace;
+  --radius: 14px;
+  --ease: cubic-bezier(.16,.84,.44,1);
+}
+
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ height:100%; background:var(--void); overflow:hidden; }
+body{
+  font-family:var(--font-body);
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+  position:relative;
+}
+::selection{ background:var(--cyan-soft); }
+::-webkit-scrollbar{ width:6px; }
+::-webkit-scrollbar-thumb{ background:var(--cyan-soft); border-radius:3px; }
+
+button, select, input{ font-family:inherit; }
+
+/* ============ BACKDROP LAYERS ============ */
+#bg-particles, #bg-grid{
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+}
+#bg-grid{
+  background-image:
+    linear-gradient(rgba(79,227,255,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79,227,255,0.06) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 10%, transparent 75%);
+  animation: gridDrift 40s linear infinite;
+}
+@keyframes gridDrift{ from{background-position:0 0;} to{background-position:420px 420px;} }
+
+#three-canvas{ position:fixed; inset:0; z-index:1; }
+
+#video-feed{
+  position:fixed; inset:0; width:100%; height:100%; object-fit:cover;
+  transform:scaleX(-1); opacity:0; z-index:0; transition:opacity .6s var(--ease);
+}
+#video-feed.live{ opacity:0.16; }
+#landmark-canvas{ position:fixed; inset:0; z-index:2; pointer-events:none; transform:scaleX(-1); opacity:0; transition:opacity .5s; }
+#landmark-canvas.live{ opacity:1; }
+
+/* ============ TOP HUD BAR ============ */
+#hud-top{
+  position:fixed; top:0; left:0; right:0; z-index:20;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:18px 28px; pointer-events:none;
+}
+.brand{
+  display:flex; align-items:center; gap:12px; pointer-events:auto;
+}
+.brand-mark{
+  width:34px; height:34px; position:relative;
+}
+.brand-mark svg{ width:100%; height:100%; }
+.brand-text{ font-family:var(--font-display); font-weight:800; font-size:19px; letter-spacing:4px; }
+.brand-text span{ color:var(--cyan); }
+.brand-sub{ font-family:var(--font-mono); font-size:9px; letter-spacing:3px; color:var(--ink-dim); margin-top:-2px; }
+
+.status-cluster{ display:flex; gap:10px; pointer-events:auto; }
+.status-pill{
+  display:flex; align-items:center; gap:8px;
+  background:var(--panel); border:1px solid var(--panel-edge);
+  backdrop-filter: blur(16px);
+  padding:8px 14px; border-radius:100px;
+  font-family:var(--font-mono); font-size:11px; letter-spacing:1px; color:var(--ink-dim);
+}
+.dot{ width:7px; height:7px; border-radius:50%; background:var(--danger); box-shadow:0 0 8px var(--danger); transition:.3s; }
+.dot.on{ background:var(--ok); box-shadow:0 0 10px var(--ok); }
+.dot.warn{ background:var(--amber); box-shadow:0 0 10px var(--amber); }
+.status-pill b{ color:var(--ink); font-weight:600; }
+
+/* ============ BOTTOM DOCK ============ */
+#dock{
+  position:fixed; bottom:26px; left:50%; transform:translateX(-50%);
+  z-index:25; display:flex; align-items:center; gap:10px;
+  background:var(--panel); border:1px solid var(--panel-edge);
+  backdrop-filter:blur(20px); border-radius:20px;
+  padding:12px 14px; box-shadow:0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.dock-btn{
+  display:flex; flex-direction:column; align-items:center; gap:5px;
+  background:transparent; border:none; color:var(--ink-dim);
+  cursor:pointer; padding:9px 14px; border-radius:12px;
+  transition: all .25s var(--ease); position:relative;
+}
+.dock-btn:hover{ color:var(--ink); background:rgba(79,227,255,0.08); }
+.dock-btn.primary{
+  background:linear-gradient(135deg, var(--cyan), var(--violet));
+  color:#031018; font-weight:700;
+}
+.dock-btn.primary:hover{ filter:brightness(1.15); transform:translateY(-2px); }
+.dock-btn.active{ color:var(--cyan); background:rgba(79,227,255,0.12); }
+.dock-btn svg{ width:20px; height:20px; }
+.dock-label{ font-family:var(--font-mono); font-size:9px; letter-spacing:1px; white-space:nowrap; }
+.dock-sep{ width:1px; height:32px; background:var(--panel-edge); margin:0 2px; }
+
+/* ============ HERO / LANDING ============ */
+#hero{
+  position:fixed; inset:0; z-index:15;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; pointer-events:none; transition:opacity .8s var(--ease);
+}
+#hero.hidden{ opacity:0; pointer-events:none; }
+.eyebrow{
+  font-family:var(--font-mono); font-size:12px; letter-spacing:6px; color:var(--cyan);
+  margin-bottom:22px; pointer-events:auto;
+  border:1px solid var(--cyan-soft); padding:6px 16px; border-radius:100px;
+  background:rgba(79,227,255,0.06);
+}
+h1.hero-title{
+  font-family:var(--font-display); font-weight:900;
+  font-size:clamp(42px, 8vw, 96px); line-height:0.95; letter-spacing:2px;
+  background:linear-gradient(180deg, #ffffff 20%, var(--cyan) 75%, var(--violet) 130%);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+  filter: drop-shadow(0 0 40px rgba(79,227,255,0.35));
+  pointer-events:auto;
+}
+.hero-sub{
+  font-size:18px; color:var(--ink-dim); max-width:560px; margin:22px 0 36px;
+  font-weight:500; letter-spacing:0.3px; pointer-events:auto;
+}
+.hero-actions{ display:flex; gap:16px; pointer-events:auto; flex-wrap:wrap; justify-content:center; }
+.btn{
+  font-family:var(--font-display); font-weight:700; font-size:13px; letter-spacing:2px;
+  padding:16px 30px; border-radius:12px; border:1px solid var(--panel-edge);
+  background:var(--panel); color:var(--ink); cursor:pointer;
+  backdrop-filter:blur(14px); transition:all .3s var(--ease);
+  display:flex; align-items:center; gap:10px;
+}
+.btn:hover{ transform:translateY(-3px); border-color:var(--cyan); box-shadow:0 10px 40px var(--cyan-soft); }
+.btn.solid{
+  background:linear-gradient(135deg, var(--cyan), var(--violet)); color:#04101a; border:none;
+}
+.btn.solid:hover{ box-shadow:0 14px 50px rgba(168,85,247,0.45); }
+.btn svg{ width:16px; height:16px; }
+
+.hero-stack-hint{
+  margin-top:54px; display:flex; gap:26px; pointer-events:auto; flex-wrap:wrap; justify-content:center;
+}
+.hint-chip{
+  font-family:var(--font-mono); font-size:10.5px; color:var(--ink-dim);
+  display:flex; align-items:center; gap:8px; letter-spacing:1px;
+}
+.hint-chip b{ color:var(--cyan); }
+
+/* floating holo rings signature element */
+.holo-core{
+  position:absolute; width:min(72vh,620px); height:min(72vh,620px);
+  pointer-events:none; z-index:-1; opacity:0.9;
+}
+.holo-core svg{ width:100%; height:100%; }
+
+/* ============ SIDE PANELS (settings / gallery) ============ */
+.panel{
+  position:fixed; top:0; right:0; height:100%; width:380px; max-width:92vw;
+  background:linear-gradient(180deg, rgba(10,14,26,0.92), rgba(6,9,17,0.96));
+  border-left:1px solid var(--panel-edge); backdrop-filter:blur(24px);
+  z-index:40; transform:translateX(100%); transition:transform .45s var(--ease);
+  display:flex; flex-direction:column; box-shadow:-30px 0 80px rgba(0,0,0,0.5);
+}
+.panel.open{ transform:translateX(0); }
+.panel-head{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:22px 22px 16px; border-bottom:1px solid var(--panel-edge);
+}
+.panel-head h2{
+  font-family:var(--font-display); font-size:15px; letter-spacing:3px; font-weight:700;
+}
+.panel-head h2 span{ color:var(--cyan); }
+.panel-close{
+  width:32px; height:32px; border-radius:8px; border:1px solid var(--panel-edge);
+  background:transparent; color:var(--ink-dim); cursor:pointer; display:flex; align-items:center; justify-content:center;
+}
+.panel-close:hover{ color:var(--danger); border-color:var(--danger); }
+.panel-body{ padding:20px 22px; overflow-y:auto; flex:1; }
+
+/* gallery grid */
+.gallery-search{
+  width:100%; padding:11px 14px; border-radius:10px; border:1px solid var(--panel-edge);
+  background:rgba(255,255,255,0.03); color:var(--ink); font-size:14px; margin-bottom:14px;
+}
+.gallery-cats{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; }
+.cat-chip{
+  font-family:var(--font-mono); font-size:10px; letter-spacing:1px; padding:6px 11px; border-radius:100px;
+  border:1px solid var(--panel-edge); color:var(--ink-dim); cursor:pointer; background:transparent;
+}
+.cat-chip.active{ background:var(--cyan-soft); color:var(--cyan); border-color:var(--cyan); }
+.obj-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.obj-card{
+  border:1px solid var(--panel-edge); border-radius:12px; padding:12px 10px; text-align:center;
+  background:rgba(255,255,255,0.02); cursor:pointer; transition:all .25s var(--ease); position:relative;
+}
+.obj-card:hover{ border-color:var(--cyan); transform:translateY(-2px); background:rgba(79,227,255,0.06); }
+.obj-card.selected{ border-color:var(--violet); box-shadow:0 0 0 1px var(--violet), 0 0 20px var(--violet-soft); }
+.obj-icon{ font-size:26px; margin-bottom:6px; }
+.obj-name{ font-size:12px; font-weight:600; }
+.obj-cat{ font-family:var(--font-mono); font-size:8.5px; color:var(--ink-dim); letter-spacing:1px; margin-top:2px; }
+.fav-btn{ position:absolute; top:6px; right:6px; background:none; border:none; color:var(--ink-dim); font-size:12px; cursor:pointer; }
+.fav-btn.active{ color:var(--amber); }
+
+/* settings */
+.set-group{ margin-bottom:22px; }
+.set-label{
+  display:flex; justify-content:space-between; font-size:13px; font-weight:600; margin-bottom:9px; color:var(--ink-dim);
+  letter-spacing:0.5px;
+}
+.set-label b{ color:var(--cyan); font-family:var(--font-mono); font-weight:400; font-size:11px; }
+input[type=range]{
+  -webkit-appearance:none; width:100%; height:4px; border-radius:2px;
+  background:linear-gradient(90deg, var(--cyan), var(--violet)); outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none; width:15px; height:15px; border-radius:50%; background:#fff;
+  box-shadow:0 0 10px var(--cyan); cursor:pointer; border:2px solid var(--cyan);
+}
+.set-select, .set-row select{
+  width:100%; padding:10px 12px; border-radius:9px; border:1px solid var(--panel-edge);
+  background:rgba(255,255,255,0.03); color:var(--ink); font-size:13px;
+}
+.toggle-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.switch{ position:relative; width:42px; height:24px; }
+.switch input{ opacity:0; width:0; height:0; }
+.slider-tog{
+  position:absolute; inset:0; background:rgba(255,255,255,0.1); border-radius:100px; cursor:pointer; transition:.3s;
+  border:1px solid var(--panel-edge);
+}
+.slider-tog:before{
+  content:""; position:absolute; width:16px; height:16px; left:3px; top:3px; background:#fff; border-radius:50%; transition:.3s;
+}
+.switch input:checked + .slider-tog{ background:var(--cyan-soft); border-color:var(--cyan); }
+.switch input:checked + .slider-tog:before{ transform:translateX(18px); background:var(--cyan); box-shadow:0 0 8px var(--cyan); }
+
+.color-row{ display:flex; gap:8px; margin-top:6px; }
+.color-dot{ width:26px; height:26px; border-radius:50%; cursor:pointer; border:2px solid transparent; }
+.color-dot.active{ border-color:#fff; transform:scale(1.15); }
+
+/* ============ GESTURE GALLERY MODAL ============ */
+#gesture-modal{
+  position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center;
+  background:rgba(3,5,10,0.75); backdrop-filter:blur(6px); opacity:0; pointer-events:none; transition:opacity .35s;
+}
+#gesture-modal.open{ opacity:1; pointer-events:auto; }
+.modal-card{
+  width:min(920px, 92vw); max-height:84vh; overflow-y:auto;
+  background:linear-gradient(180deg, rgba(12,16,28,0.96), rgba(6,9,17,0.98));
+  border:1px solid var(--panel-edge); border-radius:20px; padding:30px;
+  box-shadow:0 40px 120px rgba(0,0,0,0.6);
+}
+.modal-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:22px; }
+.modal-head h2{ font-family:var(--font-display); letter-spacing:2px; font-size:20px; }
+.gesture-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); gap:14px; }
+.g-card{ border:1px solid var(--panel-edge); border-radius:14px; padding:16px; background:rgba(255,255,255,0.02); }
+.g-emoji{ font-size:30px; margin-bottom:8px; }
+.g-name{ font-family:var(--font-display); font-size:12px; letter-spacing:1px; margin-bottom:4px; }
+.g-desc{ font-size:12.5px; color:var(--ink-dim); line-height:1.4; }
+
+/* ============ LIVE HUD (gesture/action feedback) ============ */
+#live-hud{
+  position:fixed; left:24px; top:50%; transform:translateY(-50%); z-index:22;
+  display:flex; flex-direction:column; gap:12px; pointer-events:none;
+}
+#live-hud.hidden{ display:none; }
+.hud-card{
+  background:var(--panel); border:1px solid var(--panel-edge); backdrop-filter:blur(16px);
+  border-radius:14px; padding:14px 16px; width:200px;
+}
+.hud-title{ font-family:var(--font-mono); font-size:9px; letter-spacing:2px; color:var(--ink-dim); margin-bottom:8px; }
+.gesture-readout{ display:flex; align-items:center; gap:10px; }
+.gesture-readout .g-icon{ font-size:26px; }
+.gesture-readout .g-label{ font-family:var(--font-display); font-size:13px; letter-spacing:1px; color:var(--cyan); }
+.confidence-bar{ height:4px; border-radius:2px; background:rgba(255,255,255,0.08); margin-top:9px; overflow:hidden; }
+.confidence-bar i{ display:block; height:100%; background:linear-gradient(90deg,var(--cyan),var(--violet)); width:0%; transition:width .15s; }
+
+#toast-stack{ position:fixed; top:78px; left:50%; transform:translateX(-50%); z-index:60; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
+.toast{
+  font-family:var(--font-mono); font-size:11.5px; letter-spacing:1px; padding:9px 18px; border-radius:100px;
+  background:rgba(10,14,26,0.85); border:1px solid var(--cyan-soft); color:var(--ink); backdrop-filter:blur(10px);
+  animation: toastIn .3s var(--ease), toastOut .3s ease 2.2s forwards;
+}
+@keyframes toastIn{ from{opacity:0; transform:translateY(-10px);} to{opacity:1; transform:translateY(0);} }
+@keyframes toastOut{ to{opacity:0; transform:translateY(-8px);} }
+
+/* screenshot flash + gallery strip */
+#flash{ position:fixed; inset:0; background:#fff; z-index:80; opacity:0; pointer-events:none; }
+#shot-strip{
+  position:fixed; bottom:100px; left:50%; transform:translateX(-50%); z-index:24;
+  display:flex; gap:8px; pointer-events:none;
+}
+.shot-thumb{ width:52px; height:38px; border-radius:6px; border:1px solid var(--panel-edge); object-fit:cover; box-shadow:0 6px 20px rgba(0,0,0,0.5); }
+
+/* responsive */
+@media (max-width:720px){
+  #dock{ gap:2px; padding:9px; }
+  .dock-label{ display:none; }
+  .dock-btn{ padding:9px; }
+  #live-hud{ display:none; }
+  h1.hero-title{ font-size:12vw; }
+  .status-cluster{ display:none; }
+  .panel{ width:100vw; }
+}
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration:0.01ms !important; transition-duration:0.01ms !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- backdrop -->
+<div id="bg-grid"></div>
+<canvas id="bg-particles"></canvas>
+<video id="video-feed" autoplay playsinline muted></video>
+<canvas id="landmark-canvas"></canvas>
+<canvas id="three-canvas"></canvas>
+
+<!-- top HUD -->
+<div id="hud-top">
+  <div class="brand">
+    <div class="brand-mark">
+      <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="none" stroke="#4fe3ff" stroke-width="1.4" opacity="0.6"/><circle cx="20" cy="20" r="11" fill="none" stroke="#a855f7" stroke-width="1.4"/><circle cx="20" cy="20" r="3.4" fill="#4fe3ff"/></svg>
+    </div>
+    <div>
+      <div class="brand-text">AETHER<span>.</span></div>
+      <div class="brand-sub">HOLOGRAPHIC INTERFACE</div>
+    </div>
+  </div>
+  <div class="status-cluster">
+    <div class="status-pill"><span class="dot" id="dot-cam"></span>CAM <b id="cam-state">OFFLINE</b></div>
+    <div class="status-pill"><span class="dot" id="dot-hand"></span>HANDS <b id="hand-state">0</b></div>
+    <div class="status-pill">FPS <b id="fps-state">--</b></div>
+  </div>
+</div>
+
+<!-- hero -->
+<section id="hero">
+  <div class="holo-core">
+    <svg viewBox="0 0 600 600">
+      <defs>
+        <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#4fe3ff"/><stop offset="100%" stop-color="#a855f7"/>
+        </linearGradient>
+      </defs>
+      <g style="transform-origin:300px 300px; animation:spin 30s linear infinite;">
+        <circle cx="300" cy="300" r="270" fill="none" stroke="url(#ringGrad)" stroke-width="0.6" stroke-dasharray="2 10" opacity="0.5"/>
+      </g>
+      <g style="transform-origin:300px 300px; animation:spin 22s linear infinite reverse;">
+        <circle cx="300" cy="300" r="220" fill="none" stroke="#4fe3ff" stroke-width="0.8" stroke-dasharray="1 6" opacity="0.4"/>
+      </g>
+      <g style="transform-origin:300px 300px; animation:spin 45s linear infinite;">
+        <circle cx="300" cy="300" r="170" fill="none" stroke="#a855f7" stroke-width="1" opacity="0.35"/>
+      </g>
+    </svg>
+  </div>
+  <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+
+  <div class="eyebrow">GESTURE-NATIVE 3D SYSTEM</div>
+  <h1 class="hero-title">CONTROL MATTER<br/>WITH YOUR HANDS</h1>
+  <p class="hero-sub">A gesture-driven holographic workspace. Point your webcam at your hands and spawn, resize, rotate, and color realtime 3D objects — no mouse, no controller.</p>
+  <div class="hero-actions">
+    <button class="btn solid" id="btn-start-camera">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+      START CAMERA
+    </button>
+    <button class="btn" id="btn-open-gallery-hero">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      GESTURE GALLERY
+    </button>
+  </div>
+  <div class="hero-stack-hint">
+    <div class="hint-chip">✋ <b>OPEN PALM</b> spawn</div>
+    <div class="hint-chip">✊ <b>FIST</b> remove</div>
+    <div class="hint-chip">🤏 <b>PINCH</b> grab &amp; move</div>
+    <div class="hint-chip">👏 <b>CLAP</b> reset</div>
+  </div>
+</section>
+
+<!-- live gesture feedback HUD -->
+<div id="live-hud" class="hidden">
+  <div class="hud-card">
+    <div class="hud-title">DETECTED GESTURE</div>
+    <div class="gesture-readout"><span class="g-icon" id="live-g-icon">—</span><span class="g-label" id="live-g-label">NONE</span></div>
+    <div class="confidence-bar"><i id="live-g-conf"></i></div>
+  </div>
+  <div class="hud-card">
+    <div class="hud-title">ACTIVE OBJECT</div>
+    <div class="gesture-readout"><span class="g-icon" id="live-obj-icon">—</span><span class="g-label" id="live-obj-label">NONE</span></div>
+  </div>
+  <div class="hud-card">
+    <div class="hud-title">SCENE OBJECTS</div>
+    <div class="gesture-readout"><span class="g-label" id="live-obj-count" style="color:var(--ink)">0</span></div>
+  </div>
+</div>
+
+<div id="toast-stack"></div>
+<div id="flash"></div>
+<div id="shot-strip"></div>
+
+<!-- bottom dock -->
+<div id="dock">
+  <button class="dock-btn primary" id="btn-toggle-camera" title="Start / stop camera">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+    <span class="dock-label">CAMERA</span>
+  </button>
+  <div class="dock-sep"></div>
+  <button class="dock-btn" id="btn-gallery">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    <span class="dock-label">OBJECTS</span>
+  </button>
+  <button class="dock-btn" id="btn-gestures">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M6 14V9a2 2 0 0 1 4 0v9c-3 0-5-2-5-2l-1.5-3a1.5 1.5 0 0 1 2.5-1.7"/></svg>
+    <span class="dock-label">GESTURES</span>
+  </button>
+  <button class="dock-btn" id="btn-shot">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    <span class="dock-label">CAPTURE</span>
+  </button>
+  <button class="dock-btn" id="btn-voice">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4"/></svg>
+    <span class="dock-label">VOICE</span>
+  </button>
+  <div class="dock-sep"></div>
+  <button class="dock-btn" id="btn-settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    <span class="dock-label">SETTINGS</span>
+  </button>
+  <button class="dock-btn" id="btn-fullscreen">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+    <span class="dock-label">EXPAND</span>
+  </button>
+</div>
+
+<!-- OBJECT GALLERY PANEL -->
+<div class="panel" id="panel-gallery">
+  <div class="panel-head"><h2>OBJECT <span>GALLERY</span></h2><button class="panel-close" data-close="panel-gallery">✕</button></div>
+  <div class="panel-body">
+    <input class="gallery-search" id="gallery-search" placeholder="Search 24 holographic models…" />
+    <div class="gallery-cats" id="gallery-cats"></div>
+    <div class="obj-grid" id="obj-grid"></div>
+  </div>
+</div>
+
+<!-- SETTINGS PANEL -->
+<div class="panel" id="panel-settings">
+  <div class="panel-head"><h2>SYSTEM <span>SETTINGS</span></h2><button class="panel-close" data-close="panel-settings">✕</button></div>
+  <div class="panel-body">
+    <div class="set-group">
+      <div class="set-label">Bloom Intensity <b id="val-bloom">1.2</b></div>
+      <input type="range" id="set-bloom" min="0" max="3" step="0.1" value="1.2">
+    </div>
+    <div class="set-group">
+      <div class="set-label">Particle Density <b id="val-particles">1.0</b></div>
+      <input type="range" id="set-particles" min="0.2" max="2" step="0.1" value="1">
+    </div>
+    <div class="set-group">
+      <div class="set-label">Gesture Sensitivity <b id="val-sens">0.7</b></div>
+      <input type="range" id="set-sens" min="0.3" max="0.95" step="0.05" value="0.7">
+    </div>
+    <div class="set-group">
+      <div class="set-label">Shadow Quality</div>
+      <select class="set-select" id="set-shadow">
+        <option value="low">Low</option>
+        <option value="medium" selected>Medium</option>
+        <option value="high">High (Ultra)</option>
+      </select>
+    </div>
+    <div class="set-group">
+      <div class="set-label">Object Quality</div>
+      <select class="set-select" id="set-quality">
+        <option value="low">Performance</option>
+        <option value="medium" selected>Balanced</option>
+        <option value="high">Cinematic</option>
+      </select>
+    </div>
+    <div class="set-group">
+      <div class="set-label">Camera Resolution</div>
+      <select class="set-select" id="set-camres">
+        <option value="640">640 × 480</option>
+        <option value="1280" selected>1280 × 720 (HD)</option>
+        <option value="1920">1920 × 1080 (Full HD)</option>
+      </select>
+    </div>
+    <div class="set-group">
+      <div class="set-label">Scene Background</div>
+      <select class="set-select" id="set-bg">
+        <option value="void">Deep Void</option>
+        <option value="nebula" selected>Nebula Field</option>
+        <option value="grid">Cyber Grid</option>
+        <option value="aurora">Aurora Drift</option>
+      </select>
+    </div>
+    <div class="set-group">
+      <div class="set-label">Accent Theme</div>
+      <div class="color-row" id="theme-row">
+        <div class="color-dot active" style="background:#4fe3ff" data-theme="cyan"></div>
+        <div class="color-dot" style="background:#a855f7" data-theme="violet"></div>
+        <div class="color-dot" style="background:#ff5470" data-theme="rose"></div>
+        <div class="color-dot" style="background:#4dffa8" data-theme="mint"></div>
+        <div class="color-dot" style="background:#ffb454" data-theme="amber"></div>
+      </div>
+    </div>
+    <div class="toggle-row">
+      <span>Mirror Mode</span>
+      <label class="switch"><input type="checkbox" id="set-mirror" checked><span class="slider-tog"></span></label>
+    </div>
+    <div class="toggle-row">
+      <span>Show Hand Skeleton</span>
+      <label class="switch"><input type="checkbox" id="set-skeleton" checked><span class="slider-tog"></span></label>
+    </div>
+    <div class="toggle-row">
+      <span>Sound Effects</span>
+      <label class="switch"><input type="checkbox" id="set-sfx" checked><span class="slider-tog"></span></label>
+    </div>
+    <div class="toggle-row">
+      <span>Physics (gravity / bounce)</span>
+      <label class="switch"><input type="checkbox" id="set-physics" checked><span class="slider-tog"></span></label>
+    </div>
+
+    <div class="set-group" style="margin-top:8px;">
+      <div class="set-label">Upload Custom Model (.glb / .gltf)</div>
+      <input type="file" id="upload-glb" accept=".glb,.gltf" style="font-size:11px; width:100%;">
+    </div>
+
+    <button class="btn" style="width:100%; justify-content:center; margin-top:20px;" id="btn-reset-all">RESET SCENE</button>
+  </div>
+</div>
+
+<!-- GESTURE GALLERY MODAL -->
+<div id="gesture-modal">
+  <div class="modal-card">
+    <div class="modal-head"><h2>GESTURE <span style="color:var(--cyan)">LEXICON</span></h2><button class="panel-close" id="close-gesture-modal">✕</button></div>
+    <div class="gesture-grid" id="gesture-grid"></div>
+  </div>
+</div>
+
+<!-- ================= LIBRARIES (CDN, no build step) ================= -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675466124/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
